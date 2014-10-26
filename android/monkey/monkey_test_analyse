@@ -1,0 +1,15 @@
+android monkey test
+
+
+
+
+
+
+
+
+1.iowait分析
+1.1查看那个进程进行读写操作
+  echo 1 > /proc/sys/vm/block_dump
+  使用dmsg查看内核打印
+1.2 vmstat
+1.3  iostat -p -x ALL -1 查看分区的读写

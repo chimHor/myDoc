@@ -1,0 +1,2 @@
+
+java -jar signapk.jar test.x509.pem test.pk8 unsig.apk sign.apk
