@@ -49,7 +49,7 @@ git config --global rerere.enabled false
 
 
 
-删除tag
+删除本地tag
 git tag -d [tag_name]
 删除服务器tag
 git push xxx :refs/tags/[tag_name]
