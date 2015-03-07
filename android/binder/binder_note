@@ -1,0 +1,12 @@
+Binder的理解：
+
+第一层：binder功能是什么？相比类似功能的IPC通信方式如Socket等，优势和劣势是什么？binder的基础是什么？
+
+
+
+第二层：binder的使用（理解binder基本原理，binder库）
+        java层的使用
+        native层的使用
+        java和native层混合使用
+        
+第三层：binder实现原理（binder库，内核驱动）
