@@ -1,0 +1,71 @@
+# ActitvityManagerService
+
+ActivityServicesManagery是Android系统核心服务，管理了Activity，Service，BroadcastReceiver和ContentProvicer四个Android基本组件。AMS实现功能总多，所以类里面成员函数总多，涉及的其他类也比较复杂。学习分析AMS，从两个角度去看：
+1. 实现总多的管理功能可以粗略分成几个部分（功能模块）来看（几个部分有很多逻辑的是相互交织在一起，所以才是一个AMS实现）
+2. 通过一些重要的流程来学习分析AMS，如activity的启动过程，AMS的初始化
+
+## AMS的职能
+### Activity的管理
+  涉及函数如：
+  Activity是什么？
+  Activity如何存在？
+  AMS为什么能管理Activity？
+  Acitivity在AMS中组织方式？
+  Activity的管理的三个问题:怎么样创建Activity（Activity启动），在Activity存活的时候可以对它做什么，怎么样销毁Activity（Activity自己正常退出和被动crash）
+  
+### Service的管理
+  涉及函数如：
+  Service是什么？
+  Service如何存在？
+  AMS为什么能管理Service？
+  Service在AMS中组织方式？
+  同样管理的三个问题：如何创建Service（Service启动），在Service存活的时候可以对它做什么，怎么样销毁Service（同样区分主动和被动）
+  
+### ContentProvider的管理
+  涉及函数如：
+  ContentProvider是什么？
+  ContentProvider如何存在？
+  AMS为什么能管理ContentProvider？
+  ContentProvider在AMS中组织方式？
+  同样管理的三个问题：如何创建ContentProvider（ContentProvider启动），在ContentProvider存活的时候可以对它做什么，怎么样销毁ContentProvider（同样区分主动和被动）
+  数据安全必然涉及权限，权限管理如何实现？
+  
+### Broadcast的管理
+  涉及函数如：
+  Broadcast是什么？
+  Broadcast有什么类型（如何分类）
+
+### Process管理
+  涉及函数如：
+  Process在AMS中组织方式？
+  如何和Activity，Service，ContentProvicer交织在一起？
+  
+### Debug和Profile
+
+## Activity的组织结构
+
+一般c应用程序启动，都是在shell里面执行bin文件，然后系统就去启动这个应用程序。启动这个应用程序先开启一个新的进程，有些初始化的工作，然后开始执行main函数
+
+Activity的启动需要一个intent，intent里面包括了几个信息，要启动包含几个信息，启动哪个Activity，然后以什么样的方式启动等。AMS处理intent，结合当前的状态来启动这个Activity。
+假设需要创建一个应用进程去运行这个Activity，创建这个进程有一些初始化的工作，然后再在这个进程里面去运行Activity。
+
+这个和c应用程序还是有很大区别，Activity是在一个上下文中运行，这个上下文是系统已经定好，而c应用从main开始就是看应用代码怎么写。
+
+
+am命令启动一个activity
+（假设这个activity所在的应用进程不存在，需要启动一个应用进程）
+am命令启动一个activity的一个流程分两个部分：AMS接收到来自am的intent，到开启新的进程；启动新的应用进程，然后Activity开始在这个应用进程中运行。
+
+
+
+activity退出和crash
+
+
+
+Service流程
+
+Broadcast流程
+
+ContentProvider流程和权限管理
+
+Debug和Profile
