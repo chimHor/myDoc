@@ -2,45 +2,29 @@
 
 ActivityServicesManagery是Android系统核心服务，管理了Activity，Service，BroadcastReceiver和ContentProvicer四个Android基本组件。AMS实现功能总多，所以类里面成员函数总多，涉及的其他类也比较复杂。学习分析AMS，从两个角度去看：
 1. 实现总多的管理功能可以粗略分成几个部分（功能模块）来看（几个部分有很多逻辑的是相互交织在一起，所以才是一个AMS实现）
-2. 通过一些重要的流程来学习分析AMS，如activity的启动过程，AMS的初始化
+2. 通过一些重要的流程来学习分析AMS，如activity的启动过程
 
 ## AMS的职能
 ### Activity的管理
-  涉及函数如：
   Activity是什么？
   Activity如何存在？
   AMS为什么能管理Activity？
   Acitivity在AMS中组织方式？
   Activity的管理的三个问题:怎么样创建Activity（Activity启动），在Activity存活的时候可以对它做什么，怎么样销毁Activity（Activity自己正常退出和被动crash）
+
   
-### Service的管理
-  涉及函数如：
-  Service是什么？
-  Service如何存在？
-  AMS为什么能管理Service？
-  Service在AMS中组织方式？
-  同样管理的三个问题：如何创建Service（Service启动），在Service存活的时候可以对它做什么，怎么样销毁Service（同样区分主动和被动）
-  
-### ContentProvider的管理
-  涉及函数如：
-  ContentProvider是什么？
-  ContentProvider如何存在？
-  AMS为什么能管理ContentProvider？
-  ContentProvider在AMS中组织方式？
-  同样管理的三个问题：如何创建ContentProvider（ContentProvider启动），在ContentProvider存活的时候可以对它做什么，怎么样销毁ContentProvider（同样区分主动和被动）
-  数据安全必然涉及权限，权限管理如何实现？
+
   
 ### Broadcast的管理
-  涉及函数如：
   Broadcast是什么？
   Broadcast有什么类型（如何分类）
+  Broadcast的流程是怎么样的？
 
-### Process管理
-  涉及函数如：
-  Process在AMS中组织方式？
-  如何和Activity，Service，ContentProvicer交织在一起？
-  
+### ContentProvider的管理
+  数据安全必然涉及权限，权限管理如何实现？
+
 ### Debug和Profile
+基本命令
 
 ## 一些基本概念
 
@@ -70,7 +54,8 @@ Activity是Android组件中最基本的组件之一。在一个android应用中�
 * 一个TaskRecord包含多个ActivityRecord
 * 一个ActivityRecord对应一个ProcessRecord，一个ProcessRecord对应多个ActivityRecord
 
-
+补充一幅图描述了Activity和AMS，WMS的IPC的关系
+<img src="ams_activity_binder.png" >
 
 
 
@@ -109,13 +94,188 @@ Activity是Android组件中最基本的组件之一。在一个android应用中�
 
 #### activity退出和crash
 
-通常应用crash分两种，一种是native崩溃，一种java层崩溃一般的崩溃的处理流程如下
+通常应用crash分两种，一种是native崩溃，一种java层崩溃
+下图为java层崩溃的处理流程：
+<img src="ams_application_crash.png">
+1. native层崩溃类似的，不过是从第2调用handleApplicationCrashInner开始处理，native层崩溃触发是从Android的debuggerd进程先捕抓到，然后通过socket通信到NativeCrashListener，然后通知的AMS的
+2. 在crashApplication里面通知应用自杀，当应用完成自杀之后，通过binder的通知AMS继续下一步处理appDiedLocked
+3. cleanUpApplicationRecordLocked里面把应用的ProcessRecord的内容清理干净，所有应用进程的service和contentProvider都会清理掉
+4. 最后到ActivityStack里面清理ActivityRecord
 
 
-Service流程
 
-Broadcast流程
+## Broadcast
 
-ContentProvider流程和权限管理
+广播机制是Android基本机制之一。广播机制只要为了实现一处发生事情，多处得到通知的效果。这种通知工作常常要牵涉跨进程通讯，由ActivityManagerService来管理
 
-Debug和Profile
+#### 两种BroadcastReciver
+
+应用能使用的广播有两种，一种是静态注册，也就是在应用的AndroidManifest.xml上注册。另外一种是动态的，在代码执行过程中注册和注销。
+
+注册BroadcastReceiver包含两个重要的类一个是BroadcastReceiver和BroadcastFilter。静态注册往往只需要在AndroidManifest.xml里面声明BroadcastReceiver，并接收什么广播。在动态注册两个都要想要的实例，调用registerReceiver注册。BroadcastReceiver描述的是收到广播后做什么，BroadcastFilter描述的时候什么广播符合。BroadcastReceiver和BroadcastFilter没有必然的数量对应关系。一个BroadcastReceiver可以对应一个或者多个BroadcastFilter，一个BroadcastFilter也可以提供给多个BroadcastReceiver使用。
+
+##### 动态注册BroadcastReceiver
+通常动态注册BroadcastReceiver，调用Context的registerReceiver接口，最后调用到ContextImpl的registerReceiverInternal,下面一部分代码引用：
+
+```
+
+private Intent registerReceiverInternal(BroadcastReceiver receiver,
+                                        IntentFilter filter, String broadcastPermission,
+                                        Handler scheduler, Context context) 
+{
+    IIntentReceiver rd = null;    
+    if (receiver != null) 
+    {        
+        if (mPackageInfo != null && context != null) 
+        {            
+            if (scheduler == null) 
+            {
+                scheduler = mMainThread.getHandler();
+            }
+            rd = mPackageInfo.getReceiverDispatcher(receiver, context, scheduler,
+                               mMainThread.getInstrumentation(), true);
+        }
+        . . . . . .
+    }    
+    try 
+    {        
+        return ActivityManagerNative.getDefault().registerReceiver(
+                mMainThread.getApplicationThread(), mBasePackageName,
+                rd, filter, broadcastPermission);
+    } 
+    catch (RemoteException e) 
+    {        
+        return null;
+    }
+}
+```
+
+重点关注IIntentReceiver，原型是定义在LoadApk的嵌套类，这个提供给AMS接收到广播回调用的通路
+
+在AMS这端通过mRegisteredReceivers来保存动态注册的BroadcastReceiver
+```
+ final HashMap<IBinder, ReceiverList> mRegisteredReceivers =
+            new HashMap<IBinder, ReceiverList>();
+```
+ReceiverList的定义是
+```
+class ReceiverList extends ArrayList<BroadcastFilter>
+        implements IBinder.DeathRecipient
+```
+一个ReceiverList对应是应用端一个BroadcastReceiver，里面可能有多个可以触发的BroadcastFilter
+
+下图是网上看到的一张描述应用端和AMS关于BroadcastReceiver对应关系的图
+
+<img src="broadcastreceiver.png" >
+
+##### 静态注册BroadcastReceiver
+静态注册的BroadcastReceiver是通过AndroidManifest.xml注册的，所以相关的信息会保存在PMS里面，而不是在AMS里面，当有需要的时候AMS像PMS查询相关信息。
+PMS通过ActivityIntentResolver保存静态注册BroadcastReceiver的信息
+下图是描述ActivityIntentResolver的结构图:
+<img src="activityintentresolver.png" >
+
+### 广播的流程
+广播流程图如下
+
+<img src="sendBroadcast.png" >
+
+1. 无论是发送什么广播，sticky还是ordered，都是通过AMS的broadcastIntent接口作为入口发送广播
+2. 实际干活的一般的都带Locked后缀，因为Binder调用过来都不是服务本身的主线程，要不加锁保障同步，要不就是利用Handler发一个消息到主线程去处理，broadcastIntent这里加了锁调用broadcastIntent。在调用broadcastIntentLocked之前其实还调用了verifyBroadcastLocked，图上没有画出来，verifyBroadcastLocked的作用主要是检查是否在启动完成之前发广播，启动完成之前没有加FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT标志的广播是不允许发的
+3. broadcastIntentLocked所做第一件事就是给广播加上FLAG_EXCLUDE_STOPPED_PACKAGES，含义是默认不会出发没有启动的应用的静态注册的BroadcastReceiver，除非广播Intent增加了FLAG_INCLUDE_STOPPED_PACKAGES标志
+4.  broadcastIntentLocked接下来需要处理一些系统广播，比如Package类广播。这些主要从PMS发出来。比如，当PKMS处理APK的添加、删除或改动时，一般会发出类似下面的广播：ACTION_PACKAGE_ADDED，ACTION_PACKAGE_REMOVED，ACTION_PACKAGE_CHANGED，ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE，ACTION_UID_REMOVED
+5. broadcastIntentLocked再下一步对如果是sticky作一些特殊处理
+6. 接下来就是调用collectReceiverComponents去PMS查询所有声明响应这个广播的静态注册receiver和到mReceiverResolver收集相应的动态注册recevier
+7. 如果不是ordered类型广播，新建一个BroadcastRecord，把动态注册的广播放进去，然后插入到平行广播队列里面，触发BroadcastQueue处理待广播的BroadcastRecord。注意BroadcastQueue有两个队列，一个平行广播，一个顺序广播。
+8. 再把静态和动态recever合并放入新建BroadcastRecord里面然后，插入到顺序广播队列里面，触发BroadcastQueue处理待广播的BroadcastRecord。这里当时看了很久没想明白合并静态和动态recever那么不和之前的插入平行广播队列的BroadcastRecord的动态recevier重复了，动态recevier会触发两次？后面发现漏了一句话，一开始使用动态recevier后会把动态recevier的list置为null，合并动态和静态的目的就是当指定发ordered类型广播时候，是不会创建一个BroadcastRecord到平行广播队列里面。发一个普通的广播，可能对应有两个BroadcastRecord
+9. BroadcastQueue里面有自己的handler，AMS只是插入BroadcastRecord，然后调用scheduleBroadcastsLocked，再handler里面调用processNextBroadcast真正处理BroadcastRecord
+10. processNextBroadcast最先处理平行广播队列，因为简单，只需要通知相关进程就可以了。处理顺序队列比较麻烦，因为是顺序，必须一个接一个的通知，通知下一个之前上一个必须执行完，所以还会有个处理的timeout，超过timeout，就会向AMS报ANR。
+11. 处理平行广播队列，通过deliverToRegisteredReceiverLocked，到performReceiveLocked，最后调到应用进程的ActivityThread的scheduleRegisteredReceiver
+12. 注意触发动态recevier有两条通路，图上只画了一条，就是调用scheduleRegisteredReceiver，再调到InnerReceiver的performReceive，另外一条通路就是在performReceiveLocked直接调到InnerReceiver的performReceive。在无论哪条路，最后出发到BroadcastRecevier的onReceive
+13. 注意为什么BroadcastRecevier处理时间过长会导致ANR？ReceiverDispatcher会向AtivityTread去post一个Args（ReceiverDispatcher的嵌套类，实现Runable接口），在Args的run函数里面调用BroadcastRecevier的onReceive，也就是onReceive是在UI线程里面执行的
+14. 静态recevier的广播会更加麻烦一些，在BroadcastQueue里面先要检查应用是否启动,没有启动要先启动，然后把当前的BroadcastRecord设为mPendingBroadcast,然后返回了。等待应用进程起来的时候，在AMS执行attachApplication的时候，在去通知应用进程响应广播
+
+
+
+## ContentProvider权限管理
+
+ContentProvider是提供跨进程数据查询，增加，修改，所以必然有一套权限管理机制，这套权限管理的机制实现都在AMS里面
+AMS里面关于ContentProvider的权限管理回答下面几个场景的权限问题：
+1. A应用有一个ContentProvider，只希望开放读权限给其他应用，不希望其他应用能有写权限
+2. A应用有一个ContentProvider，里面有很多数据，希望有一部分数据完全不开放，一部分开放读权限或读写权限
+3. A应用有一个ContentProvider，B应用有权限读，希望委托C应用去解析应用，C应用本身无权限
+
+所有权限的声明和配置在AndroidManifest.xml里面，所以解析都是由PMS解析，但是真正实现权限的管理和判定是在AMS里面
+
+如果ContentProvider需要把权限开放出来，首先在AndroidManifest.xml里面声明exported=true
+```
+<provider android:name=".AProvider" 
+    android:authorities="AProvider" 
+    android:exported="true" /> 
+```
+
+下一步可以定义权限
+```
+<permission android:name="permission.READ_A_CONTENTPROVIDER" 
+    android:label="Allow read A content provider" 
+    android:protectionLevel="normal" />  
+
+<provider android:name=".AProvider" 
+    android:authorities="AProvider" 
+    android:readPermission="permission.READ_A_CONTENTPROVIDER"
+    android:exported="true" > 
+</provider> 
+```
+如果其他应用有这样的声明就可以获取到读权限
+```
+<uses-permission android:name="permission.READ_A_CONTENTPROVIDER" />
+```
+如果是声明部分数据权限的话
+```
+<provider android:name=".AProvider" 
+    android:authorities="AProvider" 
+    android:readPermission="permission.READ_A_CONTENTPROVIDER" 
+    android:exported="true" > 
+    <path-permission android:pathPrefix="/A1" android:readPermission="READ_A1_CONTENTPROVIDER" />
+</provider> 
+```
+其他应用需要读取A1数据类似声明权限即可
+应用要定义权限传递定义
+```
+<provider android:name=".AProvider" 
+     android:authorities="AProvider" 
+     android:readPermission="READ_A_CONTENTPROVIDER" 
+     android:exported="true" >  
+     <grant-uri-permission android:pathPrefix="/A1" />
+</provider> 
+```
+
+AMS实现权限管理就是通过mGrantedUriPermissions来保存那些应用有哪些uri的什么权限
+```
+    private final SparseArray<ArrayMap<Uri, UriPermission>>
+            mGrantedUriPermissions = new SparseArray<ArrayMap<Uri, UriPermission>>();
+```
+SparseArray不是一个List容器，他是一个Map，所以一般要增加元素的时候是这样的
+```
+//targetUid是应用的uid,targetUris则是这个uid应用的拥有的所有的uri的权限集合
+//targetUris类型为ArrayMap<Uri, UriPermission>
+mGrantedUriPermissions.put(targetUid, targetUris);
+```
+
+mGrantedUriPermissions管理的有些权限可以定义为永久的，会写到/data/system/urigrants.xml里面，在AMS里面读取和保存的函数是：
+```
+private void writeGrantedUriPermissions()
+private void readGrantedUriPermissionsLocked()
+```
+
+权限传递的方法可以通过Intent来传递，在Intent里面加上FLAG_GRANT_READ_URI_PERMISSION或FLAG_GRANT_WRITE_URI_PERMISSION，在启动应用的流程中的ActivityStackSupervisor的startActivityUncheckedLocked会调用AMS的grantUriPermissionFromIntentLocked进行授权
+
+
+还可以调用Context的grantUriPermission接口？
+
+
+## Debug
+dumpsys activity -h能看到更多细致dump命令包括activity，broadcast等等
+
+## 心得
+AMS里面的代码流程错综复杂，理解下来感觉最重要的一点是：
+**AMS的调用都是通过Binder调用的，所以入口函数所在线程肯定不是AMS的handler所在的线程，保持多线程能够正确执行，还是靠synchronized同步，synchronized里面调用的函数一般都会带Locked后缀，另外就是发消息到handler去排队处理**
