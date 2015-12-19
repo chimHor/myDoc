@@ -1,0 +1,162 @@
+#!/usr/bin/env python
+#
+
+"""
+"""
+
+import os
+import sys
+import time
+import getopt
+
+
+
+def getProjectList(sdk):
+  ProjectList = ".repo/project.list"
+  sdkProjectList = os.path.join(sdk,ProjectList)
+  print "sdk:",sdk
+  print " projectList:",sdkProjectList
+  out = []
+  if os.path.isfile(sdkProjectList) :
+    f = open(sdkProjectList,'r')
+    out = f.readlines()
+  else :
+    print sdkProjectList,"is not file"
+
+  i = 0
+  while i < len(out):
+    path = out[i]
+    path=path.rstrip('\n')
+    path=path.rstrip('\r')
+    out[i]=path
+    path=os.path.join(sdk,path)
+    if not os.path.isdir(path) :
+      print path,"is not dir"
+      out = []
+      break
+    i = i + 1
+
+  return out
+
+def testSdkComplet(sdk):
+  return True
+
+
+def backupGit(sdk):
+  sdk_bk=sdk+"_bk"
+  if  (not os.path.exists(sdk_bk)) :
+    os.mkdir(sdk_bk)
+  if moveGit(sdk,sdk_bk):
+    pass
+  else:
+    print "backup",sdk,"git fail"
+
+def moveGit(src,des):
+  if os.path.isdir(src) and os.path.isdir(des) :
+    dirs = getProjectList(src)
+    if len(dirs)<1 :
+      print src,"not have repo "
+      return False
+    for d in dirs:
+      if not os.path.exists(os.path.join(des,d)):
+        os.makedirs(os.path.join(des,d))
+      os.rename(os.path.join(src,d,".git"),os.path.join(des,d,".git"))
+      print os.path.join(src,d,".git"),os.path.join(des,d,".git")
+  else :
+    print src,"or",des,"is not exist"
+    return False
+  os.rename(os.path.join(src,".repo"),os.path.join(des,".repo"))
+  return True
+
+def recoverGit(sdk):
+  sdk_bk=sdk+"_bk"
+  if moveGit(sdk_bk,sdk):
+    pass
+  else:
+    print "recover",sdk,"git fail"
+
+def main(argv):
+  #for arg in argv:
+  #  print arg
+  revert = False
+  direction = ""
+  try:
+    options,args = getopt.getopt(sys.argv[1:],"hd:r",["help","direction=","revert"])
+  except getopt.GetoptError:
+    sys.exit()
+
+  for name,value in options:
+    if name in ("-h","--help"):
+      print "help"
+      sys.exit()
+    if name in ("-d","--direction"):
+      direction = value
+    if name in ("-r","--revert"):
+      revert = True
+      print "-r"
+
+  if direction == "ali2android":
+      print "direction is ali2android"
+  elif direction == "android2ali":
+      print "direction is android2ali"
+  else:
+      print "unknow direction",direction
+      sys.exit()
+
+
+  if len(args)!=3 :
+    print "arg is not enough:",len(args)
+    exit(1);
+
+  pwd = os.getcwd()
+  ali = os.path.abspath(args[0]);
+  lichee = os.path.abspath(args[1])
+  android = os.path.abspath(args[2]);
+
+  print "ali sdk:",ali
+  print "lichee sdk:",lichee
+  print "android sdk:",android
+
+  if not os.path.isdir(ali):
+    print "path:",ali,"is not a dir"
+    #exit(1)
+
+  if not os.path.isdir(lichee):
+    print "path:",lichee,"is not a dir"
+    #exit(1)
+
+  if not os.path.isdir(android):
+    print "path:",android,"is not a dir"
+    #exit(1)
+
+
+  if direction == "ali2android" :
+    if revert :
+      print "move",android,"git to",ali
+      moveGit(android,ali)
+      print "move",android+"/lichee","to",lichee
+      os.rename(os.path.join(android,"lichee"),lichee)
+      print "recover Git",android
+      recoverGit(android)
+      print "recover Git",lichee
+      recoverGit(lichee)
+    else :
+      print "backup Git",android,"to",android+"_bk"
+      backupGit(android)
+      print "backup Git",lichee,"to",lichee+"_bk"
+      backupGit(lichee)
+      print "move",lichee,"to",android+"/lichee"
+      os.rename(lichee,os.path.join(android,"lichee"))
+      print "move",ali,"git to",android
+      moveGit(ali,android)
+
+  elif direction == "android2ali":
+    print "direction is android2ali"
+
+  #backupGit(src)
+  #recoverGit(src)
+
+  print "finish!!"
+
+if __name__ == '__main__':
+    main(sys.argv)
