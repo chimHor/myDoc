@@ -1,34 +1,51 @@
 #SELinux(Android)
 
+####介绍
 SELinux 全称 Security Enhanced Linux (安全强化 Linux)，是 MAC (Mandatory Access Control，强制访问控制系统)的一个实现，++**目的在于明确的指明某个进程可以访问哪些资源(文件、网络端口等)**++。
-强制访问控制系统的用途在于增强系统抵御 0-Day 攻击(利用尚未公开的漏洞实现的攻击行为)的能力。所以它不是网络防火墙或 ACL 的替代品，在用途上也不重复。
+强制访问控制系统的用途在于增强系统抵御 0-Day 攻击(利用尚未公开的漏洞实现的攻击行为)的能力。s
+**++Android 在SELinux上作了一些定制。++**有人把它叫做SEAndroid。在4.3上开始引入selinux，使用Permissive模式，4.4上使用部分Enforcing模式，5.0开始全面Enforcing模式
 
-**++Android 在SELinux上作了一些定制。++**有人把它叫做SEAndroid。在4.3上开始引入selinux，使用
-Permissive模式，4.4上使用部分Enforcing模式，5.0开始全面Enforcing模式
 
-#####Android selinux保护覆盖范围
-- 文件
-- 属性
-- binder通信
-- ???
+#### selinux框架介绍
+selinux的基本的原理是通过编译时决定的安全策略，在各个系统调用中加入hook做权限判断。
+Android上面selinux的框架如下图所示：
+![](selinux_framework.png)
+~（图片来源互联网，罗升阳的博客）~
 
-#####Android selinux相关代码配置路径
-- external/sepolicy：提供了Android平台中的安全策略源文件。同时，该目录下的tools还提供了诸如m4,checkpolicy等编译安全策略文件的工具。注意，这些工具运行于主机（即不是提供给Android系统使用的）
-- external/libselinux：提供了Android平台中的libselinux，供Android系统使用。
+图中分三个角色：
+- 绿色部分为安全策略，编译时决定
+- 蓝色部分负责加载安全策略，使能安全策略，在已有安全策略下，操作进程和资源的context，libselinux为蓝色部分提供api
+- 紫色部分为安全策略的执行，由它来判定是否违反安全策略
+
+#####Android selinux相关代码配置位置
+- external/sepolicy：提供了Android平台中的安全策略源文件。同时，该目录下的tools还提供了诸如m4,checkpolicy等编译安全策略文件的工具
+- external/libselinux：提供selinux管理的接口
 - external/libsepol：提供了供安全策略文件编译时使用的一个工具checkcon。
 
+##### Android上的安全策略定制
+sepolicy是selinux安全策略定义，位于external/sepolicy下面。
+Android的各个方案可以增加自己的策略作为external/sepolicy的补充，但不能与external/sepolicy冲突，通常通过BoardConfig.mk指定补充的规则文件
+```
+BOARD_SEPOLICY_DIRS += \
+        <root>/device/manufacturer/device-name/sepolicy
 
-####SELinux运行状态
-#####获取当前 SELinux 运行状态
+BOARD_SEPOLICY_UNION += \
+        genfs_contexts \
+        file_contexts \
+        sepolicy.te
+```
+
+####SELinux工作模式
+#####获取当前 SELinux 工作模式
 `getenforce`
 可能返回结果有三种：Enforcing、Permissive 和 Disabled。Disabled 代表 SELinux 被禁用，Permissive 代表仅记录安全警告但不阻止可疑行为，Enforcing 代表记录警告且阻止可疑行为。
 
-#####改变 SELinux 运行状态
+#####改变 SELinux 工作模式
 `setenforce [ Enforcing | Permissive | 1 | 0 ]`
-该命令可以立刻改变 SELinux 运行状态，在 Enforcing 和 Permissive 之间切换，结果保持至关机。一个典型的用途是看看到底是不是 SELinux 导致某个服务或者程序无法运行。若是在 setenforce 0 之后服务或者程序依然无法运行，那么就可以肯定不是 SELinux 导致的。
+该命令可以立刻改变 SELinux 工作模式，在 Enforcing 和 Permissive 之间切换，结果保持至关机。一个典型的用途是看看到底是不是 SELinux 导致某个服务或者程序无法运行。若是在 setenforce 0 之后服务或者程序依然无法运行，那么就可以肯定不是 SELinux 导致的。
 
-
-###SEAndroid TE规则语法
+###SEAndroid TE规则
+####基本概念
 ##### context（label）
 在selinux里面context和label是同一个含义，中文上面理解标签（label）更加容易理解。
 selinux的基本控制权限的方法是，给不同的进程、文件打上标签（label），通过定义不同label之前的关系，来实现权限控制。
@@ -51,7 +68,7 @@ u表示user， object_r表示role，  rootfs表示type，  s0是Security Level
 **Android上面只用到了type这个label来控制权限，其他三个label在selinux里面也可以完成其他机制的权限控制。所以下面的内容只涉及基于type权限控制的规则和关系**
 
 
-#### type，domain，scontext，tcontext
+##### type，domain，scontext，tcontext
 MAC的机制分两中角色，主体和客体，主体就是发起动作的一方，就是指进程，客体是可以是各种资源（主要是文件形式），主体和客体都有一个标签叫type。但是进程的type一般不称为type，称为domain。可以理解为domain就是特指进程的type。
 
 进程的selinux的context（label），有时能看到打印叫做scontext，文件的context（label），有时候看到打印也叫做tcontext，如下面一条avc打印：
@@ -59,19 +76,8 @@ MAC的机制分两中角色，主体和客体，主体就是发起动作的一�
 avc: denied  { connectto } for  pid=2671 comm="ping" path="/dev/socket/dnsproxyd"
 scontext=u:r:shell:s0 tcontext=u:r:netd:s0 tclass=unix_stream_socket
 ```
-#### sepolicy
-sepolicy是selinux运行规则定义，位于external/sepolicy下面。
-具体方案可以配置自己的sepolicy作为external/sepolicy的补充，但不能与external/sepolicy冲突，通常通过BoardConfig.mk指定补充的规则文件
-```
-BOARD_SEPOLICY_DIRS += \
-        <root>/device/manufacturer/device-name/sepolicy
 
-BOARD_SEPOLICY_UNION += \
-        genfs_contexts \
-        file_contexts \
-        sepolicy.te
-```
-#### allow语句，neverallow语句，???
+#### allow语句
 下面是一条allow语句的例子
 `allow netd proc:file write`
 这个语句的含义是**允许netd(domain)对type为proc的object_class为file的文件进行写操作**。具体语法分析为：
@@ -79,7 +85,7 @@ BOARD_SEPOLICY_UNION += \
 - netd：source type，主体的domain。
 - proc：target type，客体的type
 - file：代表Object Class。它代表能够给subject操作的一类东西。例如File、Dir、socket等。在Android系统中，有一个其他Linux系统没有的Object Class，那就是Binder。
-- write：在该类Object Class中所定义的操作。
+- write：在该类Object Class中所定义的操作权限。
 
 #### object class及其操作
 客体除了type这个标签还有一个属性叫做object class。type和object class的区别是:假设在应用层，我有足够的权限，我可以改变一个文件的type，可以改为a，可以改为b，但是无法修改object class，这个文件的object class是由文件本身决定的。比如一个普通文件，它的object class就是file，就不能改成blk_file（块设备文件）。
@@ -88,12 +94,35 @@ allow语句例子中的write为操作，这个操作这个操作和object class�
 
 Android上面的object class的**声明**参考external/sepolicy/security_classes，每个object class定义的操作参考external/sepolicy/access_vectors，access_vectors的语法比较好理解，其中有一个inherits表示继承关系
 
-#### 进程domain以及domain的转化
+#### 进程domain
 
 ###### domain初始化
 系统启动的第一个进程init，先初始化selinux，然后根据init.rc
 `  setcon u:r:init:s0  `
 设置自己的context。
+
+###### domain和attribute
+`type vfat, sdcard_type, fs_type, mlstrustedobject;`
+sdcard_type,fs_type和mlstrustedobject都是attribute，atrribute一般译为属性，直观理解语句的含义是vfat具有sdcard_type,fs_type和mlstrustedobject的属性。
+`allow vold sdcard_type:dir create_dir_perms`
+这个表示具有sdcard_type属性的type都可以运行vold对dir类型有create_dir_perms的操作。
+把attribute只理解为属性会比较费解，应该理解为attribute是表示一个type的集合(拥有这个attribute的type集合），用面向对象的语言来表示大概就是Set<type>。他的命名和type的命名是在一个空间里面，就是说命名不能和已有的type命名同名。
+实际上attribute是一个配置规则的概念，实际运行时是没有attribute这个概念的。attribute只是为了编写规则方便而设的概念。
+比如
+```
+attribute x_type;
+type a, x_type;
+type b, x_type;
+allow a_domain x_type:x_class x_action;
+```
+编译后翻译为
+```
+allow a_domain a:x_class x_action;
+allow a_domain b:x_class x_action;
+```
+其实domain也是一个attribute，约定进程的type都是使用domain这个集合里面的一个type
+`type dhcp, domain;`
+
 
 ###### domain的转化
 所有进程是由init进程fork出来，init进程本身有自己的domain，但fork出来的子进程的也有自己的domain，所以必须有一个domain的转化过程。
@@ -126,7 +155,7 @@ domain_trans($1,$2,$3)
 type_transition $1 $2:process $3;
 ')
 ```
-注释已经把两个宏解释得很清楚。domain_auto_trans就是在domain_trans里面多了一句type_transtion完成自动转化。（有domain_trans赋予的权限后就可以自己调用系统接口修改domain，execv前后都可以？）
+注释已经把两个宏解释得很清楚。domain_auto_trans就是在domain_trans里面多了一句type_transtion完成自动转化。（有domain_trans赋予的权限后就可以自己调用系统接口修改domain，execv前后都可以？？？）
 
 由domain得出以下的一些推论：
 - 如果父进程的domain是A，有转化domain B和C的权限，fork子进程在调用execv前可以先把domain转化B或者C
@@ -149,8 +178,8 @@ type_transition $1 $2:process $3;
 	```
     genfscon vfat / u:object_r:vfat:s0
     ```
-    
-Android关于文件的context的配置参考/external/sepolicy/file_contexts
+
+Android关于文件的context的配置参考external/sepolicy/file_contexts
 
 ###### init.rc中的restorecon命令
 init.rc中的restorecon命令就是运行时根据sepolicy的配置去设置文件的context。
@@ -185,17 +214,71 @@ type_transition $1 $2:notdevfile_class_set $3;
 
 
 #### property，binder的selinux规则
+property的selinux的规则其实也比较简单参考external/sepolicy/property.te和external/sepolicy/property_context两个文件，也就是定义了一些用于property的type，哪些开头的property关联哪些type，具体到各个domain的定义里面运行domain对这些type有什么操作权限
 
-#### 小结
+binder的规则，首先看两个object class的定义的操作权限，service_manager和binder，具体在external/sepolicy/access_vectors里面。理解操作权限后，看te_maros里面binder_service和binder_call的宏定义。
+新增加服务要先定义一个type表示这个服务，关联到service_manager_type，服务的进程还要有向service_manager做add这个新的服务type的权限。
+
+#### 语法简单介绍
+`type type_id [alias alias_id] [, attribute_id];`
+声明一个type_id，同时声明一个别名alias_id，并和type_id的关联，attribute_id就是属性名
+`attribute attribute_id;`
+声明一个attribute，习惯上attribute的命名后缀是_type，比如sdcard_type
+`typeattribute type_id attribute_id;`
+如果声明type的时候没有关联属性，可以另外用这个语句进行关联
+`typealias type_id alias alias_id;`
+如果声明type的时候没有关联别名，声明一个别名alias_id，并和type_id的关联
+`permissive type_id;`
+selinux处于enforce的状态下，运行type_id的进程运行在permissive模式，即没有任何selinux权限显示，比如su就会有这个声明
+```
+define(`marco_id', `
+allow $1 $2:$3 $4;
+')
+```
+宏定义语句，用$1,$2...表示参数
+`allow domain_id type_id:class_id permission_id`
+允许domain_id对type_id的class_id类型资源进行permission_id操作
+`neverallow domain_id type_id:class_id permission_id`
+和allow相反，注意selinux本身是最小权限原则，没有allow授权的默认没有权限，neverallow明确声明不允许，如果存在allow矛盾则编译不通过。
+`fs_use_xattr ext4 u:object_r:labeledfs:s0;`
+对于支持selinux的文件context保存的文件系统，声明他们的type，注意ext4这个是和内核支持的文件系统的名字是对应的，而labeledfs是一个type，名字在sepolicy里面规定的，可以自己定义
+```
+fs_use_task pipefs u:object_r:pipefs:s0;
+fs_use_trans devpts u:object_r:devpts:s0;
+```
+都是对于虚拟文件系统的context的配置，fs_use_task对象是eventpollfs, pipefs and sockfs，fs_use_trans的对象是mqueue, shm, tmpfs and devpts
+`genfscon proc / u:object_r:proc:s0`
+fs_use_xattr，fs_use_task，fs_use_trans之外的用genfscon
+
+###### 语法符号
+- 可以用*表示通配符
+- 可以用-表示排除
+- 可以用{}表示一组内容
+
+#### Android的object class和permission参考
+下表来源于http://source.android.com/security/selinux/customize.html
+
+| Class | Permission |
+|--------|--------|
+| file | ioctl read write create getattr setattr lock relabelfrom relabelto append unlink link rename execute swapon quotaon mounton |
+|directory |add_name remove_name reparent search rmdir open audit_access execmod |
+| socket | ioctl read write create getattr setattr lock relabelfrom relabelto append bind connect listen accept getopt setopt shutdown recvfrom sendto recv_msg send_msg  name_bind |
+| filesystem | mount remount unmount getattr relabelfrom relabelto transition associate quotamod quotaget |
+| process |fork transition sigchld sigkill sigstop signull signal ptrace getsched setsched getsession getpgid setpgid getcap setcap share getattr setexec setfscreate noatsecure siginh setrlimit rlimitinh dyntransition setcurrent execmem execstack execheap setkeycreate setsockcreate |
+| security |compute_av compute_create compute_member check_context load_policy compute_relabel compute_user setenforce setbool setsecparam setcheckreqprot read_policy |
+| capability |chown dac_override dac_read_search fowner fsetid kill setgid setuid setpcap linux_immutable net_bind_service net_broadcast net_admin net_raw ipc_lock ipc_owner sys_module sys_rawio sys_chroot sys_ptrace sys_pacct sys_admin sys_boot sys_nice sys_resource sys_time sys_tty_config mknod lease audit_write audit_control setfcap |
+
+#### some points
 1. SEAndroid是通过type来控制权限，进程有自己的type（domain），资源（文件，属性，binder等）也有自己的type
-2. 进程的domain是有多少种是硬编码（sepolicy），是系统编译的时候决定。进程实际运行时的domain可以发生改变，但是否允许改变和允许改变成哪个domain也是硬编码（sepolicy）
-3. 资源本身的type有初始化值，是硬编码（sepolicy）。
-
-#### selinux框架
-![](selinux_framework.png)
-> （图片来源互联网，罗升阳的博客）
+2. sepolicy是编译时决定的
+3. libselinux里面提供一些接口管理selinux，进程和文件的type在sepolicy规定的范围内，可以运行时改变
+4. OTA升级可以升级sepolicy，system分区的文件的type，在ota升级的时候更新，注意类似data分区的文件可能需要init.rc执行restorecon命令更新type
+5. 区分规则里面哪些命名是内核决定的，哪些是sepolicy里面自己声明的
 
 
-参考：
+
+#####参考资料：
 http://source.android.com/security/selinux/index.html
-http://selinuxproject.org/page/Main_Page
+http://selinuxproject.org/page/Category:Notebook
+http://blog.csdn.net/innost/article/details/19299937
+http://blog.csdn.net/luoshengyang/article/details/37613135
