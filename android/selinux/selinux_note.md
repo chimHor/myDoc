@@ -2,7 +2,7 @@
 
 ####介绍
 SELinux 全称 Security Enhanced Linux (安全强化 Linux)，是 MAC (Mandatory Access Control，强制访问控制系统)的一个实现，++**目的在于明确的指明某个进程可以访问哪些资源(文件、网络端口等)**++。
-强制访问控制系统的用途在于增强系统抵御 0-Day 攻击(利用尚未公开的漏洞实现的攻击行为)的能力。s
+强制访问控制系统的用途在于增强系统抵御 0-Day 攻击(利用尚未公开的漏洞实现的攻击行为)的能力。
 **++Android 在SELinux上作了一些定制。++**有人把它叫做SEAndroid。在4.3上开始引入selinux，使用Permissive模式，4.4上使用部分Enforcing模式，5.0开始全面Enforcing模式
 
 
@@ -25,7 +25,7 @@ Android上面selinux的框架如下图所示：
 ##### Android上的安全策略定制
 sepolicy是selinux安全策略定义，位于external/sepolicy下面。
 Android的各个方案可以增加自己的策略作为external/sepolicy的补充，但不能与external/sepolicy冲突，通常通过BoardConfig.mk指定补充的规则文件
-```
+```makefile
 BOARD_SEPOLICY_DIRS += \
         <root>/device/manufacturer/device-name/sepolicy
 
