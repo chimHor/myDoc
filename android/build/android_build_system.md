@@ -128,11 +128,6 @@ make -C $T -f build/core/main.mk $MODULES $ARGS
 
 ***
 
-
-
-方案配置模板：
-Android.mk模板:
-
 常见变量含义
 
 make构建过程分析手段
@@ -141,7 +136,33 @@ make构建过程分析手段
 3. 把要命令中$(hide)去掉
 
 MakeFile语法备忘:
-1. 
+1. make执行分两步，第一步解析MakeFile，确认依赖关系以及规则；第二步按照构建目标的依赖关系执行规则
+2. 如果MakeFile include对象也是MakeFile中定义的目标之一，先生成include的对象，然后清空所有变量和依赖关系，重新解析，再根据目标执行规则
+3. 变量解析规则：
+  ```
+IMMEDIATE = DEFERRED
+IMMEDIATE ?= DEFERRED
+IMMEDIATE := IMMEDIATE
+IMMEDIATE += DEFERRED or IMMEDIAT
+define IMMEDIATE
+DEFERRED
+Endef
+  ```
+  ```
+IMMEDIATE : IMMEDIATE ; DEFERRED
+	   DEFERRED
+
+  ```
+  条件语句如 "ifdef","ifeq","ifndef"和"ifneq"都是立刻展开
+4. 内置函数调用变体
+  ```
+  $(VAR:PATTERN=REPLACEMENT)
+  $(patsubst PATTERN,REPLACEMENT,$(VAR))
+  ```
+  ```
+  $(VAR:SUFFIX=REPLACEMENT)
+  $(patsubst %SUFFIX,%REPLACEMENT,$(VAR))
+  ```
 
 
 
