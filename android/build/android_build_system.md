@@ -104,7 +104,7 @@ product.mk ： 定义一个Product的相关变量以及函数
 
 
 
-### 一些问题
+### FAQ
 ##### 每个模块Android.mk里面LOCAL开头变量定义是什么区分的?编译sdk的时候是怎么知道有重复相同模块名字的定义？
 1. 所有模块的定义都是一个模式先include $(CLEAR_VARS)，把LOCAL开通的变量全部清理，然后在根据编译目标类型去include $(BUILD_EXECUTABLE)或者$(BUILD_PACKAGE)等，这些mk最后都会包含base_rules.mk。在base_rules.mk里面根据模块名字，编译目标类型，是HOST还是TARGET来生成一个id，检查是否和已有的id重复，如果重复，就会有"xxx alread defined by xxx“错误打印。换一种情况，如果使用mm命令编译的时候，由于makefile没有去查找包含sdk中的Android.mk，所以也不会也重复定义的错误。
 2. 在base_rules.mk里面也会把一些必要的LOCAL开头的变量转化为ALL_MODULES.$(LOCAL_MODULE).xx变量，然后继续包含其他模块的时候$(CLEAR_VARS)把LOCAL开头的变量清除了，这样就实现了模块LOCAL开头变量区分。
@@ -126,16 +126,71 @@ make -C $T -f build/core/main.mk $MODULES $ARGS
 
 
 
-***
 
-常见变量含义
+#### 常见变量含义
+- LOCAL_MODULE
+LOCAL_MODULE表示模块的名称
 
-make构建过程分析手段
+- LOCAL_MODULE_PATH
+表示模块编译结果将要存放的目录
+
+- LOCAL_MODULE_STEM
+表示编译链接后的目标文件的文件名，不带后缀
+
+- LOCAL_BUILT_MODULE
+表示编译链接后的目标文件(文件路径+文件名)
+
+- LOCAL_BUILT_MODULE_STEM
+表示编译链接后的目标文件的文件名，带后缀
+
+- LOCAL_INSTALLED_MODULE
+表示模块的安装路径+文件名，存放在安装目录
+
+- LOCAL_UNINSTALLABLE_MODULE
+表示应用是否编译到/data分区
+
+- LOCAL_UNSTRIPPED_PATH
+没有strip的程序存放路径，通常放在symbols目录
+
+- LOCAL_MODULE_CLASS
+  在定义模块类型，如Apk，native程序，动态库，静态库等
+
+- LOCAL_MODULE_SUFFIX
+表示编译链接后的目标文件的后缀
+
+- LOCAL_PACKAGE_NAME
+编译出来App名字
+
+- LOCAL_REQUIRED_MODULES
+本模块依赖的模块
+
+- LOCAL_MODULE_TAGS
+模块的tag，为debug eng tests optional samples shell_ash shell_mksh等tag的组合，一个模块可有多个Tag,
+
+- LOCAL_SRC_FILES
+源代码文件集合
+
+- LOCAL_STATIC_JAVA_LIBRARIES
+要链接的Java库，被链接的库将不会单独放到system分区，而是被放入编译生成的java包里
+
+- LOCAL_STATIC_LIBRARIES
+表示模块要链接的静态库
+
+- LOCAL_WHOLE_STATIC_LIBRARIES
+链接时会将LOCAL_WHOLE_STATIC_LIBRARIES类型的静态链接库的所有目标代码放入最终目标文件里，而不去掉
+
+- LOCAL_SHARED_LIBRARIES
+表示模块要链接的动态链接库
+
+
+#### make构建过程分析手段
+
 1. 使用warnning语句来打印
 2. make --debug=b  或者 mm --debug=b
 3. 把要命令中$(hide)去掉
 
-MakeFile语法备忘:
+#### MakeFile语法备忘:
+
 1. make执行分两步，第一步解析MakeFile，确认依赖关系以及规则；第二步按照构建目标的依赖关系执行规则
 2. 如果MakeFile include对象也是MakeFile中定义的目标之一，先生成include的对象，然后清空所有变量和依赖关系，重新解析，再根据目标执行规则
 3. 变量解析规则：
