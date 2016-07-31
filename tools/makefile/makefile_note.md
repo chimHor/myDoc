@@ -11,7 +11,7 @@
 
 
 ###语法规则
-1. include包含其他makefile时，如果makefile也是一个目标，会执行规则重建这个目标。当所有makefile都是最新时，再清除当前所有解析的内容，重新解析makefile，根据目标执行规则
+1. include包含其他makefile时，如果makefile也是一个目标，会执行规则重建这个目标。上述过程可能会重复多次，直到所有makefile都是最新时，再清除当前所有解析的内容，重新解析makefile，根据目标执行规则
 2. MAKEFILE_LIST包含了当前所有读取过的makefile，最后一个字为当前的makefile
 3. 变量的赋值
 ```
@@ -33,4 +33,13 @@ IMMEDIATE : IMMEDIATE ; DEFERRED
 TARGETS : NORMAL_PREREQUISITES | ORDER-ONLY-PREREQUISITES
 ```
 6. 文件通配符(*)：只能用于目标，依赖，命令中。其他情况用wildcard函数
-7. 
+7. 双冒号依赖规则与单冒号依赖规则区别:
+- 多条单冒号依赖规则会合并，依赖关系和会合在一起，最后一组规则命令会override前面的命令，一旦根据合并的依赖关系满足构建条件，只执行最后的一组命令
+- 多条单，依赖关系不会合并，满足哪组依赖关系条件就执行哪组命令，可能会执行多组命令
+8. d
+
+
+
+1. if语法
+2. 函数
+3. define语法
