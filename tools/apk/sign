@@ -1,2 +1,4 @@
-
+# sign apk
 java -jar signapk.jar test.x509.pem test.pk8 unsig.apk sign.apk
+# sign ota
+java -Xmx2048m -jar out/host/linux-x86/framework/signapk.jar -w build/target/product/security/testkey.x509.pem build/target/product/security/testkey.pk8 int.zip out.zip
