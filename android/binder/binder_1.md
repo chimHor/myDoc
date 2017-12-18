@@ -19,6 +19,18 @@ Binder简单抽象通信模型如下：
 3. 服务端死亡通知
 
 
+### 场景1
+
+浏览器输入www.google.com，首先向固定的DMS查询google的ip，根据ip访问google，与google服务器通信。
+
+同理，A进程向与B进程通信，首先得需要从固定的地方查询B进程通信地址信息才能与B进程通信，Binder里面这个固定的地方就是ServiceManager。一般服务都需要先在ServiceManager注册自己的信息，提供自己的名字和句柄，当客户端按照名字查询的时候，ServiceManager根据名字返回句柄，客户端得以与服务通信，当然ServiceManager可以根据权限判断，不返回句柄客户端，客户端无法与服务通信，所以google也不一定能直接访问。
+
+### 场景2
+
+服务管理着某些事物，客户端想在某些事件发生的时候得到通知，需要向服务器注册一个Listener。
+
+Binder的解决方案就是，A进程在向B进程注册Listener之前，A进程自己创建一个服务，但这个服务不需要公开，不会到ServiceManager注册，向B进程注册Listener就是把自己的服务的通信句柄传给B进程，B进程有需要的时候通过这个句柄回调A进程。Android应用与ActivityManagerService和WindowManagerService交互的时候使用这种方法。
+
 ##Binder简单应用例子
 
 由于java层上应用binder实际上时通过java类和jni作了一次封装后最后调用libbinder接口实现通信，所以例子直接在native层已C++实现。
